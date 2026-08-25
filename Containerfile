@@ -1,0 +1,139 @@
+# syntax=docker/dockerfile:1.7
+# Alpine + Temurin musl jlink + official Keycloak tarball.
+# Not FROM quay.io/keycloak/keycloak. Java is not an apk/RPM package.
+
+ARG ALPINE_IMAGE=docker.io/library/alpine:3.24.1
+ARG KEYCLOAK_VERSION=26.7.2
+ARG KEYCLOAK_SHA256=4f3ce3b797a9d98998b7f1a6bd5d2b9832100faea66c48988713a9b23eda5c44
+ARG JAVA_MAJOR=21
+
+# ---------------------------------------------------------------------------
+# Fetch + jlink Temurin musl JDK
+# ---------------------------------------------------------------------------
+FROM ${ALPINE_IMAGE} AS jre
+
+ARG JAVA_MAJOR
+ARG TARGETARCH
+ARG TEMURIN21_VERSION=21.0.12.1_1
+ARG TEMURIN21_TAG=jdk-21.0.12.1+1
+ARG TEMURIN21_AMD64_SHA256=bd8824214e42b33333c7f55a039ea078ad6ea6be20d7c5b011c801fb2bdb44f0
+ARG TEMURIN21_ARM64_SHA256=8242627927adc90ac2561d0812dd39890ebc21ef09b550bc2e8b93640b8af4f8
+ARG TEMURIN25_VERSION=25.0.4.1_1
+ARG TEMURIN25_TAG=jdk-25.0.4.1+1
+ARG TEMURIN25_AMD64_SHA256=f18648ee5ce45261f50dc9493fdae7ddebaa2a7a857cafda3e2a448a79c03dee
+ARG TEMURIN25_ARM64_SHA256=8d19373d427017d86ac87cf6a47ba49746be864832f60b52b7e3b1531c6b2cb8
+
+RUN apk add --no-cache ca-certificates wget \
+ && case "${TARGETARCH}" in \
+      amd64) TEMURIN_ARCH=x64 ;; \
+      arm64) TEMURIN_ARCH=aarch64 ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+ && case "${JAVA_MAJOR}" in \
+      21) \
+        VER="${TEMURIN21_VERSION}"; TAG="${TEMURIN21_TAG}"; REPO=temurin21-binaries; \
+        case "${TARGETARCH}" in \
+          amd64) SHA="${TEMURIN21_AMD64_SHA256}" ;; \
+          arm64) SHA="${TEMURIN21_ARM64_SHA256}" ;; \
+        esac ;; \
+      25) \
+        VER="${TEMURIN25_VERSION}"; TAG="${TEMURIN25_TAG}"; REPO=temurin25-binaries; \
+        case "${TARGETARCH}" in \
+          amd64) SHA="${TEMURIN25_AMD64_SHA256}" ;; \
+          arm64) SHA="${TEMURIN25_ARM64_SHA256}" ;; \
+        esac ;; \
+      *) echo "unsupported JAVA_MAJOR=${JAVA_MAJOR}" >&2; exit 1 ;; \
+    esac \
+ && TAG_ENC=$(printf '%s' "${TAG}" | sed 's/+/%2B/g') \
+ && URL="https://github.com/adoptium/${REPO}/releases/download/${TAG_ENC}/OpenJDK${JAVA_MAJOR}U-jdk_${TEMURIN_ARCH}_alpine-linux_hotspot_${VER}.tar.gz" \
+ && wget -q -O /tmp/jdk.tar.gz "${URL}" \
+ && echo "${SHA}  /tmp/jdk.tar.gz" | sha256sum -c - \
+ && mkdir -p /opt/jdk \
+ && tar -xzf /tmp/jdk.tar.gz -C /opt/jdk --strip-components=1 \
+ && rm -f /tmp/jdk.tar.gz \
+ && MODULES=$(find /opt/jdk/jmods -name '*.jmod' -exec basename {} .jmod \; \
+      | grep -Ev '^(jdk\.jconsole|jdk\.jshell|jdk\.javadoc|jdk\.jlink|jdk\.jpackage|jdk\.jdeps|jdk\.jcmd|jdk\.jstatd|jdk\.editpad)$' \
+      | paste -sd, -) \
+ && /opt/jdk/bin/jlink \
+      --module-path /opt/jdk/jmods \
+      --add-modules "${MODULES}" \
+      --strip-debug \
+      --no-man-pages \
+      --no-header-files \
+      --compress=2 \
+      --output /opt/java \
+ && rm -rf /opt/jdk
+
+# ---------------------------------------------------------------------------
+# Fetch official Keycloak distribution
+# ---------------------------------------------------------------------------
+FROM ${ALPINE_IMAGE} AS dist
+
+ARG KEYCLOAK_VERSION
+ARG KEYCLOAK_SHA256
+
+RUN apk add --no-cache ca-certificates wget \
+ && wget -q -O /tmp/keycloak.tar.gz \
+      "https://github.com/keycloak/keycloak/releases/download/${KEYCLOAK_VERSION}/keycloak-${KEYCLOAK_VERSION}.tar.gz" \
+ && echo "${KEYCLOAK_SHA256}  /tmp/keycloak.tar.gz" | sha256sum -c - \
+ && mkdir -p /opt \
+ && tar -xzf /tmp/keycloak.tar.gz -C /opt \
+ && mv "/opt/keycloak-${KEYCLOAK_VERSION}" /opt/keycloak \
+ && rm -f /tmp/keycloak.tar.gz \
+      /opt/keycloak/bin/*.bat \
+      /opt/keycloak/bin/*.ps1 \
+ && mkdir -p /opt/keycloak/data /opt/keycloak/providers /opt/keycloak/themes
+
+# ---------------------------------------------------------------------------
+# Runtime: Alpine musl + jlink JRE + Keycloak. apk removed.
+# ---------------------------------------------------------------------------
+FROM ${ALPINE_IMAGE}
+
+ARG KEYCLOAK_VERSION
+ARG JAVA_MAJOR
+ARG KC_DB=postgres
+ARG KC_HEALTH_ENABLED=true
+ARG KC_METRICS_ENABLED=true
+ARG KC_FEATURES=
+ARG KC_CACHE=local
+
+ENV LANG=C.UTF-8 \
+    KC_RUN_IN_CONTAINER=true \
+    JAVA_HOME=/opt/java \
+    PATH=/opt/java/bin:/opt/keycloak/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    KC_DB=${KC_DB} \
+    KC_HEALTH_ENABLED=${KC_HEALTH_ENABLED} \
+    KC_METRICS_ENABLED=${KC_METRICS_ENABLED} \
+    KC_CACHE=${KC_CACHE}
+
+RUN apk add --no-cache \
+      ca-certificates \
+      tzdata \
+      libstdc++ \
+      libgcc \
+      zlib \
+      freetype \
+      fontconfig \
+      font-dejavu \
+ && adduser -u 1000 -G root -D -H -s /sbin/nologin keycloak
+
+COPY --from=jre /opt/java /opt/java
+COPY --from=dist --chown=1000:0 /opt/keycloak /opt/keycloak
+
+RUN chmod -R g+rwX /opt/keycloak \
+ && JAVA_OPTS="-Xms256m -Xmx1024m" /opt/keycloak/bin/kc.sh build \
+ && chown -R 1000:0 /opt/keycloak \
+ && chmod -R g+rwX /opt/keycloak \
+ && rm -rf /var/cache/apk /etc/apk /lib/apk /sbin/apk /usr/share/apk /root/.ash_history
+
+USER 1000
+WORKDIR /opt/keycloak
+EXPOSE 8080 8443 9000 7800 57800
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+CMD ["start", "--optimized"]
+
+LABEL org.opencontainers.image.title="stripped-keycloak" \
+      org.opencontainers.image.description="Keycloak ${KEYCLOAK_VERSION} on Alpine + Temurin ${JAVA_MAJOR} jlink JRE" \
+      org.opencontainers.image.version="${KEYCLOAK_VERSION}" \
+      org.opencontainers.image.source="https://github.com/keycloak/keycloak" \
+      org.opencontainers.image.licenses="Apache-2.0"

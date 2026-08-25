@@ -1,0 +1,8 @@
+ignored:
+  - DL3018
+  - DL3008
+  - DL4006
+failure-threshold: warning
+trustedRegistries:
+  - docker.io
+  - ghcr.io

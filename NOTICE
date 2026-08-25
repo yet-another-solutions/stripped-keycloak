@@ -1,0 +1,8 @@
+stripped-keycloak
+Copyright 2026 stripped-keycloak contributors
+
+This image ships the official Keycloak distribution (Apache-2.0),
+https://github.com/keycloak/keycloak
+
+and a jlink runtime derived from Eclipse Temurin (GPLv2 with Classpath Exception),
+https://adoptium.net/
