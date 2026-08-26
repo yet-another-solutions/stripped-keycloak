@@ -24,6 +24,8 @@ Baked at build time: `KC_DB=postgres`, `KC_HEALTH_ENABLED=true`, `KC_METRICS_ENA
 
 `kc.sh` is POSIX `#!/bin/sh`. Busybox is enough. Compiler modules stay in the jlink set so `kc.sh build` still works. `jdk.jconsole`, `jdk.jshell`, `jdk.javadoc`, `jdk.jlink`, `jdk.jpackage`, `jdk.jdeps`, `jdk.jcmd`, `jdk.jstatd`, `jdk.editpad` are dropped.
 
+`wget` and `binutils` (`objcopy` for `jlink --strip-debug`) are install-only in builder stages and `apk del`'d there. They do not land in the final image. Temurin 25+ has no `jmods` directory ([JEP 493](https://openjdk.org/jeps/493)); that path lists modules with `java --list-modules` and jlinks the linkable runtime.
+
 ## stripped-keycloak-operator
 
 Same Alpine + Temurin jlink principle. The official operator image is `ubi9-micro` + `java-25-openjdk-headless` wrapping a Quarkus JVM app. There is no operator tarball on GitHub releases, so the build copies `/opt/keycloak` (the `quarkus-app` tree) from the pinned official image and throws the UBI runtime away.

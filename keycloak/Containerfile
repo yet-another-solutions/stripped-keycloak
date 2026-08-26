@@ -23,7 +23,10 @@ ARG TEMURIN25_TAG=jdk-25.0.4.1+1
 ARG TEMURIN25_AMD64_SHA256=f18648ee5ce45261f50dc9493fdae7ddebaa2a7a857cafda3e2a448a79c03dee
 ARG TEMURIN25_ARM64_SHA256=8d19373d427017d86ac87cf6a47ba49746be864832f60b52b7e3b1531c6b2cb8
 
-RUN apk add --no-cache ca-certificates wget \
+# wget fetches Temurin. binutils provides objcopy for jlink --strip-debug.
+# Both are apk del'd before this stage ends; only /opt/java is copied out.
+# Temurin 25+ enables JEP 493: no jmods dir. jlink the linkable runtime instead.
+RUN apk add --no-cache ca-certificates wget binutils \
  && case "${TARGETARCH}" in \
       amd64) TEMURIN_ARCH=x64 ;; \
       arm64) TEMURIN_ARCH=aarch64 ;; \
@@ -51,18 +54,28 @@ RUN apk add --no-cache ca-certificates wget \
  && mkdir -p /opt/jdk \
  && tar -xzf /tmp/jdk.tar.gz -C /opt/jdk --strip-components=1 \
  && rm -f /tmp/jdk.tar.gz \
- && MODULES=$(find /opt/jdk/jmods -name '*.jmod' -exec basename {} .jmod \; \
-      | grep -Ev '^(jdk\.jconsole|jdk\.jshell|jdk\.javadoc|jdk\.jlink|jdk\.jpackage|jdk\.jdeps|jdk\.jcmd|jdk\.jstatd|jdk\.editpad)$' \
-      | paste -sd, -) \
+ && DROP='^(jdk\.jconsole|jdk\.jshell|jdk\.javadoc|jdk\.jlink|jdk\.jpackage|jdk\.jdeps|jdk\.jcmd|jdk\.jstatd|jdk\.editpad)$' \
+ && if [ -d /opt/jdk/jmods ]; then \
+      MODULES=$(find /opt/jdk/jmods -name '*.jmod' -exec basename {} .jmod \; \
+        | grep -Ev "${DROP}" | paste -sd, -); \
+      JLINK_MP="--module-path /opt/jdk/jmods"; \
+    else \
+      MODULES=$(/opt/jdk/bin/java --list-modules | cut -d@ -f1 \
+        | grep -Ev "${DROP}" | paste -sd, -); \
+      JLINK_MP=""; \
+    fi \
+ && [ -n "${MODULES}" ] || { echo "empty jlink module list" >&2; ls -la /opt/jdk >&2; exit 1; } \
  && /opt/jdk/bin/jlink \
-      --module-path /opt/jdk/jmods \
+      ${JLINK_MP} \
       --add-modules "${MODULES}" \
       --strip-debug \
       --no-man-pages \
       --no-header-files \
-      --compress=2 \
+      --compress=zip-6 \
       --output /opt/java \
- && rm -rf /opt/jdk
+ && rm -rf /opt/jdk \
+ && apk del binutils wget
+
 
 # ---------------------------------------------------------------------------
 # Fetch official Keycloak distribution
@@ -82,7 +95,8 @@ RUN apk add --no-cache ca-certificates wget \
  && rm -f /tmp/keycloak.tar.gz \
       /opt/keycloak/bin/*.bat \
       /opt/keycloak/bin/*.ps1 \
- && mkdir -p /opt/keycloak/data /opt/keycloak/providers /opt/keycloak/themes
+ && mkdir -p /opt/keycloak/data /opt/keycloak/providers /opt/keycloak/themes \
+ && apk del wget
 
 # ---------------------------------------------------------------------------
 # Runtime: Alpine musl + jlink JRE + Keycloak. apk removed.
