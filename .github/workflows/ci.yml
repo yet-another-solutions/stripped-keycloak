@@ -13,18 +13,38 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - keycloak/Containerfile
+          - operator/Containerfile
     steps:
       - uses: actions/checkout@v4
       - name: Hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: Containerfile
+          dockerfile: ${{ matrix.dockerfile }}
           failure-threshold: warning
 
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: keycloak
+            file: keycloak/Containerfile
+            context: keycloak
+            tag: stripped-keycloak:ci
+            java_major: "21"
+          - id: operator
+            file: operator/Containerfile
+            context: operator
+            tag: stripped-keycloak-operator:ci
+            java_major: "25"
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -32,21 +52,29 @@ jobs:
       - name: Build linux/amd64
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Containerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           platforms: linux/amd64
           push: false
           load: true
-          tags: stripped-keycloak:ci
+          tags: ${{ matrix.tag }}
           build-args: |
-            JAVA_MAJOR=21
+            JAVA_MAJOR=${{ matrix.java_major }}
+            KEYCLOAK_VERSION=26.7.2
             KC_DB=postgres
             KC_HEALTH_ENABLED=true
             KC_METRICS_ENABLED=true
             KC_CACHE=local
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Smoke kc.sh
+          cache-from: type=gha,scope=${{ matrix.id }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.id }}
+      - name: Smoke keycloak
+        if: matrix.id == 'keycloak'
         run: |
           docker run --rm --entrypoint /opt/java/bin/java stripped-keycloak:ci -version
           docker run --rm stripped-keycloak:ci --version
+      - name: Smoke operator
+        if: matrix.id == 'operator'
+        run: |
+          docker run --rm --entrypoint /opt/java/bin/java stripped-keycloak-operator:ci -version
+          docker run --rm --user 1000:0 --entrypoint /bin/sh stripped-keycloak-operator:ci -c \
+            'test -f /opt/keycloak/quarkus-run.jar && test -d /opt/keycloak/lib && test -d /opt/keycloak/quarkus'

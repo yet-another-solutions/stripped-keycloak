@@ -6,3 +6,4 @@ failure-threshold: warning
 trustedRegistries:
   - docker.io
   - ghcr.io
+  - quay.io

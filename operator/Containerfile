@@ -1,0 +1,115 @@
+# syntax=docker/dockerfile:1.7
+# Alpine + Temurin musl jlink + official Keycloak Operator quarkus-app.
+# Not FROM quay.io/keycloak/keycloak-operator as runtime. Java is not an apk/RPM package.
+#
+# There is no operator tarball on GitHub releases. The published operator image
+# is UBI + RH OpenJDK wrapping target/quarkus-app/. Copy only that tree.
+
+ARG ALPINE_IMAGE=docker.io/library/alpine:3.24.1
+ARG KEYCLOAK_VERSION=26.7.2
+ARG JAVA_MAJOR=25
+ARG OPERATOR_DIST_IMAGE=quay.io/keycloak/keycloak-operator:26.7.2@sha256:d1a54bc1032891851085625882343bbc8918c87993a0a32ba044640735db91be
+
+# ---------------------------------------------------------------------------
+# Fetch + jlink Temurin musl JDK
+# Keep module set in sync with keycloak/Containerfile.
+# ---------------------------------------------------------------------------
+FROM ${ALPINE_IMAGE} AS jre
+
+ARG JAVA_MAJOR
+ARG TARGETARCH
+ARG TEMURIN21_VERSION=21.0.12.1_1
+ARG TEMURIN21_TAG=jdk-21.0.12.1+1
+ARG TEMURIN21_AMD64_SHA256=bd8824214e42b33333c7f55a039ea078ad6ea6be20d7c5b011c801fb2bdb44f0
+ARG TEMURIN21_ARM64_SHA256=8242627927adc90ac2561d0812dd39890ebc21ef09b550bc2e8b93640b8af4f8
+ARG TEMURIN25_VERSION=25.0.4.1_1
+ARG TEMURIN25_TAG=jdk-25.0.4.1+1
+ARG TEMURIN25_AMD64_SHA256=f18648ee5ce45261f50dc9493fdae7ddebaa2a7a857cafda3e2a448a79c03dee
+ARG TEMURIN25_ARM64_SHA256=8d19373d427017d86ac87cf6a47ba49746be864832f60b52b7e3b1531c6b2cb8
+
+RUN apk add --no-cache ca-certificates wget \
+ && case "${TARGETARCH}" in \
+      amd64) TEMURIN_ARCH=x64 ;; \
+      arm64) TEMURIN_ARCH=aarch64 ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+ && case "${JAVA_MAJOR}" in \
+      21) \
+        VER="${TEMURIN21_VERSION}"; TAG="${TEMURIN21_TAG}"; REPO=temurin21-binaries; \
+        case "${TARGETARCH}" in \
+          amd64) SHA="${TEMURIN21_AMD64_SHA256}" ;; \
+          arm64) SHA="${TEMURIN21_ARM64_SHA256}" ;; \
+        esac ;; \
+      25) \
+        VER="${TEMURIN25_VERSION}"; TAG="${TEMURIN25_TAG}"; REPO=temurin25-binaries; \
+        case "${TARGETARCH}" in \
+          amd64) SHA="${TEMURIN25_AMD64_SHA256}" ;; \
+          arm64) SHA="${TEMURIN25_ARM64_SHA256}" ;; \
+        esac ;; \
+      *) echo "unsupported JAVA_MAJOR=${JAVA_MAJOR}" >&2; exit 1 ;; \
+    esac \
+ && TAG_ENC=$(printf '%s' "${TAG}" | sed 's/+/%2B/g') \
+ && URL="https://github.com/adoptium/${REPO}/releases/download/${TAG_ENC}/OpenJDK${JAVA_MAJOR}U-jdk_${TEMURIN_ARCH}_alpine-linux_hotspot_${VER}.tar.gz" \
+ && wget -q -O /tmp/jdk.tar.gz "${URL}" \
+ && echo "${SHA}  /tmp/jdk.tar.gz" | sha256sum -c - \
+ && mkdir -p /opt/jdk \
+ && tar -xzf /tmp/jdk.tar.gz -C /opt/jdk --strip-components=1 \
+ && rm -f /tmp/jdk.tar.gz \
+ && MODULES=$(find /opt/jdk/jmods -name '*.jmod' -exec basename {} .jmod \; \
+      | grep -Ev '^(jdk\.jconsole|jdk\.jshell|jdk\.javadoc|jdk\.jlink|jdk\.jpackage|jdk\.jdeps|jdk\.jcmd|jdk\.jstatd|jdk\.editpad)$' \
+      | paste -sd, -) \
+ && /opt/jdk/bin/jlink \
+      --module-path /opt/jdk/jmods \
+      --add-modules "${MODULES}" \
+      --strip-debug \
+      --no-man-pages \
+      --no-header-files \
+      --compress=2 \
+      --output /opt/java \
+ && rm -rf /opt/jdk
+
+# ---------------------------------------------------------------------------
+# Official operator quarkus-app only (UBI/RH JDK stay behind).
+# ---------------------------------------------------------------------------
+FROM ${OPERATOR_DIST_IMAGE} AS dist
+
+# ---------------------------------------------------------------------------
+# Runtime: Alpine musl + jlink JRE + quarkus-app. apk removed.
+# ---------------------------------------------------------------------------
+FROM ${ALPINE_IMAGE}
+
+ARG KEYCLOAK_VERSION
+ARG JAVA_MAJOR
+ARG RELATED_IMAGE_KEYCLOAK=ghcr.io/yet-another-solutions/stripped-keycloak:26.7.2
+
+ENV LANG=C.UTF-8 \
+    JAVA_HOME=/opt/java \
+    PATH=/opt/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    RELATED_IMAGE_KEYCLOAK=${RELATED_IMAGE_KEYCLOAK} \
+    KC_OPERATOR_KEYCLOAK_START_OPTIMIZED=true
+
+RUN apk add --no-cache \
+      ca-certificates \
+      tzdata \
+      libstdc++ \
+      libgcc \
+      zlib \
+ && adduser -u 1000 -G root -D -H -s /sbin/nologin keycloak
+
+COPY --from=jre /opt/java /opt/java
+COPY --from=dist --chown=1000:0 /opt/keycloak /opt/keycloak
+
+RUN chmod -R g+rwX /opt/keycloak \
+ && rm -rf /var/cache/apk /etc/apk /lib/apk /sbin/apk /usr/share/apk /root/.ash_history
+
+USER 1000
+WORKDIR /opt/keycloak
+EXPOSE 8080
+# Official operator Deployment does not set command. Keep this entrypoint.
+ENTRYPOINT ["java", "-Djava.util.logging.manager=org.jboss.logmanager.LogManager", "-jar", "quarkus-run.jar"]
+
+LABEL org.opencontainers.image.title="stripped-keycloak-operator" \
+      org.opencontainers.image.description="Keycloak Operator ${KEYCLOAK_VERSION} on Alpine + Temurin ${JAVA_MAJOR} jlink JRE" \
+      org.opencontainers.image.version="${KEYCLOAK_VERSION}" \
+      org.opencontainers.image.source="https://github.com/keycloak/keycloak" \
+      org.opencontainers.image.licenses="Apache-2.0"
