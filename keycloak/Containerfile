@@ -108,7 +108,7 @@ ARG JAVA_MAJOR
 ARG KC_DB=postgres
 ARG KC_HEALTH_ENABLED=true
 ARG KC_METRICS_ENABLED=true
-ARG KC_FEATURES=
+ARG KC_FEATURES
 ARG KC_CACHE=local
 
 ENV LANG=C.UTF-8 \
@@ -135,6 +135,7 @@ COPY --from=jre /opt/java /opt/java
 COPY --from=dist --chown=1000:0 /opt/keycloak /opt/keycloak
 
 RUN chmod -R g+rwX /opt/keycloak \
+ && if [ -z "${KC_FEATURES:-}" ]; then unset KC_FEATURES; fi \
  && JAVA_OPTS="-Xms256m -Xmx1024m" /opt/keycloak/bin/kc.sh build \
  && chown -R 1000:0 /opt/keycloak \
  && chmod -R g+rwX /opt/keycloak \
