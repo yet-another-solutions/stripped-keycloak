@@ -1,0 +1,118 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      java_major:
+        description: Temurin major (21 or 25)
+        required: false
+        default: "21"
+      dry_run:
+        description: Build without pushing
+        required: false
+        default: "false"
+
+# GITHUB_TOKEN is enough for GHCR. Base layers still come from docker.io
+# (see Containerfile ARG ALPINE_IMAGE). Do not retarget those pulls.
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  # CVE-2026-18963 (CVSS 9.1): unauthenticated account takeover via
+  # reset-credentials flow bypass. Fixed in 26.7.2. Do not publish older.
+  # https://github.com/keycloak/keycloak/issues/51833
+  KEYCLOAK_VERSION: "26.7.2"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard CVE-2026-18963
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          v = os.environ["KEYCLOAK_VERSION"]
+          try:
+              parts = [int(p) for p in v.split(".")]
+          except ValueError:
+              print(f"Refusing KEYCLOAK_VERSION={v}: not X.Y.Z", file=sys.stderr)
+              sys.exit(1)
+          if parts < [26, 7, 2]:
+              print(
+                  f"Refusing KEYCLOAK_VERSION={v}: CVE-2026-18963 is unfixed below 26.7.2",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          print(f"KEYCLOAK_VERSION={v} includes the CVE-2026-18963 fix")
+          PY
+
+      - name: Resolve Java major
+        id: java
+        run: |
+          if [ -n "${{ github.event.inputs.java_major }}" ]; then
+            echo "major=${{ github.event.inputs.java_major }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "major=21" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lowercase image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ env.KEYCLOAK_VERSION }}
+            type=raw,value=${{ env.KEYCLOAK_VERSION }}-alpine-jlink
+            type=raw,value=${{ env.KEYCLOAK_VERSION }}-jdk${{ steps.java.outputs.major }}
+            type=raw,value=latest,enable=${{ steps.java.outputs.major == '21' }}
+            type=sha,prefix=${{ env.KEYCLOAK_VERSION }}-
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event.inputs.dry_run != 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          build-args: |
+            JAVA_MAJOR=${{ steps.java.outputs.major }}
+            KEYCLOAK_VERSION=${{ env.KEYCLOAK_VERSION }}
+            KC_DB=postgres
+            KC_HEALTH_ENABLED=true
+            KC_METRICS_ENABLED=true
+            KC_CACHE=local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

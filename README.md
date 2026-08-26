@@ -2,7 +2,7 @@
 
 Keycloak 26.7.2 on Alpine 3.24.1 plus a Temurin musl `jlink` JRE. The official `quay.io/keycloak/keycloak` image is not used. Java is not an apk or RPM package. `apk` is deleted from the final layer.
 
-GitHub Actions builds on public runners (where the Keycloak tarball and Adoptium JDK are reachable) and publishes to Docker Hub. Internal Jenkins and CCE only pull the baked image through Nexus.
+GitHub Actions builds on public runners (where the Keycloak tarball and Adoptium JDK are reachable) and publishes to GHCR. The Containerfile still pulls Alpine from docker.io. Internal Jenkins and CCE only pull the baked image through Nexus.
 
 ## Image contract
 
@@ -45,18 +45,11 @@ Java 25:
 make build JAVA_MAJOR=25
 ```
 
-## Publish to Docker Hub
+## Publish to GHCR
 
-Create a public Docker Hub repo named `stripped-keycloak` (or let the first push create it).
+No registry secrets. The workflow logs in with `GITHUB_TOKEN` and pushes to `ghcr.io/<owner>/<repo>`.
 
-Repository secrets:
-
-| Secret | Value |
-| --- | --- |
-| `DOCKERHUB_USERNAME` | Docker Hub user |
-| `DOCKERHUB_TOKEN` | Access token with read/write |
-
-Optional repository variable `DOCKERHUB_NAMESPACE` if the Hub org differs from the username. Image path becomes `docker.io/<namespace>/stripped-keycloak`.
+`KEYCLOAK_VERSION` is pinned at `26.7.2`. That is the first public release that fixes [CVE-2026-18963](https://github.com/keycloak/keycloak/issues/51833) (unauthenticated account takeover via reset-credentials). The publish job refuses anything older. Alpine still comes from `docker.io/library/alpine`.
 
 Push a version tag:
 
@@ -67,20 +60,22 @@ git push origin v26.7.2
 
 That builds `linux/amd64` and `linux/arm64` and pushes:
 
-- `<ns>/stripped-keycloak:26.7.2`
-- `<ns>/stripped-keycloak:26.7.2-alpine-jlink`
-- `<ns>/stripped-keycloak:26.7.2-jdk21`
-- `<ns>/stripped-keycloak:latest`
+- `ghcr.io/<owner>/stripped-keycloak:26.7.2`
+- `ghcr.io/<owner>/stripped-keycloak:26.7.2-alpine-jlink`
+- `ghcr.io/<owner>/stripped-keycloak:26.7.2-jdk21`
+- `ghcr.io/<owner>/stripped-keycloak:latest`
 
 `workflow_dispatch` can build JDK 25 or run a dry build without push.
 
+The repo is private, so the GHCR package starts private. For a Nexus docker-proxy with no GitHub token, set the package visibility to public after the first push (Package settings → Change visibility).
+
 ## Pull through Nexus
 
-Point CCE at the Nexus docker proxy for `docker.io`, or copy once into a hosted repo / SWR:
+Point CCE at a Nexus docker-proxy for `ghcr.io`, or copy once into a hosted repo / SWR:
 
 ```sh
 skopeo copy \
-  docker://docker.io/<ns>/stripped-keycloak:26.7.2-alpine-jlink \
+  docker://ghcr.io/<owner>/stripped-keycloak:26.7.2-alpine-jlink \
   docker://nexus.example.com:18443/<repo>/stripped-keycloak:26.7.2-alpine-jlink
 ```
 
