@@ -5,6 +5,7 @@
 set -eu
 
 KEYCLOAK_VERSION="${KEYCLOAK_VERSION:-26.7.2}"
+IMAGE_TAG="${IMAGE_TAG:-$KEYCLOAK_VERSION}"
 OWNER="${OWNER:-yet-another-solutions}"
 OWNER="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
 REGISTRY="${REGISTRY:-ghcr.io}"
@@ -13,8 +14,8 @@ SRC="${SRC_REPO}/${KEYCLOAK_VERSION}/kubernetes"
 ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 OUT="${OUT:-${ROOT}/dist/operator-manifests}"
 
-OPERATOR_IMAGE="${REGISTRY}/${OWNER}/stripped-keycloak-operator:${KEYCLOAK_VERSION}"
-KEYCLOAK_IMAGE="${REGISTRY}/${OWNER}/stripped-keycloak:${KEYCLOAK_VERSION}"
+OPERATOR_IMAGE="${REGISTRY}/${OWNER}/stripped-keycloak-operator:${IMAGE_TAG}"
+KEYCLOAK_IMAGE="${REGISTRY}/${OWNER}/stripped-keycloak:${IMAGE_TAG}"
 UPSTREAM_OPERATOR="quay.io/keycloak/keycloak-operator:${KEYCLOAK_VERSION}"
 UPSTREAM_KEYCLOAK="quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}"
 
@@ -80,7 +81,7 @@ resources:
 EOF
 }
 
-install="${OUT}/../stripped-keycloak-operator-install-${KEYCLOAK_VERSION}.yml"
+install="${OUT}/../stripped-keycloak-operator-install-${IMAGE_TAG}.yml"
 {
   echo "# CRDs + rewritten operator Deployment from keycloak/keycloak-k8s-resources ${KEYCLOAK_VERSION}"
   echo "---"

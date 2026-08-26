@@ -104,6 +104,8 @@ That builds `linux/amd64` and `linux/arm64` and pushes:
 
 `workflow_dispatch` can build the server with JDK 25 or run a dry build without push. Operator Java stays 25.
 
+Pre-release tags (`v26.7.2-pre.1`, `v26.7.2-rc.1`) publish under that tag name, mark the GitHub Release as a pre-release, and do not move `26.7.2` or `latest`.
+
 The repo is private, so GHCR packages start private. For a Nexus docker-proxy with no GitHub token, set each package visibility to public after the first push (Package settings → Change visibility).
 
 ## Pull through Nexus
