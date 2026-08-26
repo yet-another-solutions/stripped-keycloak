@@ -6,7 +6,7 @@ OPERATOR_JAVA_MAJOR ?= 25
 PLATFORM ?= linux/amd64
 RELATED_IMAGE_KEYCLOAK ?= ghcr.io/yet-another-solutions/stripped-keycloak:$(KEYCLOAK_VERSION)
 
-.PHONY: all build build-keycloak build-operator build-multi lint run-dev run-prod
+.PHONY: all build build-keycloak build-operator build-multi lint run-dev run-prod operator-manifests
 
 all: build-keycloak build-operator
 
@@ -83,3 +83,7 @@ run-prod:
 	  -e KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/certs/tls.key \
 	  $(IMAGE):$(KEYCLOAK_VERSION)-alpine-jlink \
 	  start --optimized
+
+operator-manifests:
+	./scripts/rewrite-operator-manifests.sh
+

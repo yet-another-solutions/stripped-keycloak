@@ -78,3 +78,20 @@ jobs:
           docker run --rm --entrypoint /opt/java/bin/java stripped-keycloak-operator:ci -version
           docker run --rm --user 1000:0 --entrypoint /bin/sh stripped-keycloak-operator:ci -c \
             'test -f /opt/keycloak/quarkus-run.jar && test -d /opt/keycloak/lib && test -d /opt/keycloak/quarkus'
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and rewrite operator YAML
+        run: scripts/rewrite-operator-manifests.sh
+      - name: Check Quay images were replaced
+        run: |
+          f=dist/operator-manifests/kubernetes.yml
+          grep -F 'ghcr.io/yet-another-solutions/stripped-keycloak-operator:26.7.2' "$f"
+          grep -F 'ghcr.io/yet-another-solutions/stripped-keycloak:26.7.2' "$f"
+          if grep -F 'quay.io/keycloak/' "$f"; then
+            echo 'leftover quay.io/keycloak refs' >&2
+            exit 1
+          fi
+

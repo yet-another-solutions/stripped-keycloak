@@ -130,3 +130,30 @@ jobs:
             KC_CACHE=local
           cache-from: type=gha,scope=publish-${{ matrix.id }}
           cache-to: type=gha,mode=max,scope=publish-${{ matrix.id }}
+
+  manifests:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and rewrite operator YAML
+        env:
+          OWNER: ${{ env.OWNER }}
+          REGISTRY: ${{ env.REGISTRY }}
+          KEYCLOAK_VERSION: ${{ env.KEYCLOAK_VERSION }}
+        run: scripts/rewrite-operator-manifests.sh
+      - name: Pack kustomize dir
+        run: |
+          tar -C dist -czf "dist/stripped-keycloak-operator-manifests-${KEYCLOAK_VERSION}.tar.gz" operator-manifests
+      - name: Attach manifests to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/stripped-keycloak-operator-install-${{ env.KEYCLOAK_VERSION }}.yml
+            dist/stripped-keycloak-operator-manifests-${{ env.KEYCLOAK_VERSION }}.tar.gz
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+

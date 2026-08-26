@@ -44,7 +44,6 @@ Baked defaults (overridable at deploy time):
 
 Do not override the container command. The official operator Deployment does not set `command`/`args`; probes hit `8080` at `/q/health/live`, `/q/health/ready`, `/q/health/started`.
 
-Operator install manifests are not in this repository yet.
 
 ## Pins
 
@@ -122,6 +121,33 @@ skopeo copy \
 ```
 
 On CCE containerd do not digest-only pin through a proxy that returns `Content-Length: 0`. Use the immutable tag `26.7.2-alpine-jlink`.
+
+
+## Operator install
+
+No OLM. No Helm: the Keycloak project does not ship an operator chart ([issue 37636](https://github.com/keycloak/keycloak/issues/37636)). Without OLM the supported path is the plain YAML in [keycloak-k8s-resources](https://github.com/keycloak/keycloak-k8s-resources).
+
+That YAML is not copied into this repo. `scripts/rewrite-operator-manifests.sh` fetches the tag that matches `KEYCLOAK_VERSION` and `sed`-replaces the two Quay image refs:
+
+- `quay.io/keycloak/keycloak-operator:26.7.2` → `ghcr.io/<owner>/stripped-keycloak-operator:26.7.2`
+- `quay.io/keycloak/keycloak:26.7.2` (`RELATED_IMAGE_KEYCLOAK`) → `ghcr.io/<owner>/stripped-keycloak:26.7.2`
+
+A `v*` tag runs that script after the images are published and attaches the files to the GitHub Release. CRDs are included unchanged.
+
+```sh
+make operator-manifests
+kubectl create namespace keycloak
+kubectl apply -k dist/operator-manifests
+```
+
+From a release asset:
+
+```sh
+kubectl create namespace keycloak
+kubectl apply -f stripped-keycloak-operator-install-26.7.2.yml
+```
+
+That installs CRDs and the operator Deployment. It does not create a `Keycloak` custom resource.
 
 ## Helm override (CloudPirates wrap)
 
