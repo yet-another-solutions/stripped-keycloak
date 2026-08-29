@@ -113,7 +113,38 @@ RUN apk add --no-cache ca-certificates wget \
  && apk del wget
 
 # ---------------------------------------------------------------------------
-# Runtime: Alpine musl + jlink JRE + Keycloak. apk removed.
+# kc.sh build here so the runtime image copies the optimized tree once.
+# OverlayFS would otherwise keep the unpacked tarball AND the build output.
+# ---------------------------------------------------------------------------
+FROM ${ALPINE_IMAGE} AS build
+
+ARG KC_DB=postgres
+ARG KC_HEALTH_ENABLED=true
+ARG KC_METRICS_ENABLED=true
+ARG KC_FEATURES
+ARG KC_CACHE=local
+
+ENV LANG=C.UTF-8 \
+    KC_RUN_IN_CONTAINER=true \
+    JAVA_HOME=/opt/java \
+    PATH=/opt/java/bin:/opt/keycloak/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    KC_DB=${KC_DB} \
+    KC_HEALTH_ENABLED=${KC_HEALTH_ENABLED} \
+    KC_METRICS_ENABLED=${KC_METRICS_ENABLED} \
+    KC_CACHE=${KC_CACHE}
+
+# musl jlink JRE needs these to start. Fonts are runtime-only.
+RUN apk add --no-cache ca-certificates libstdc++ libgcc zlib
+
+COPY --from=jre /opt/java /opt/java
+COPY --from=dist /opt/keycloak /opt/keycloak
+
+RUN if [ -z "${KC_FEATURES:-}" ]; then unset KC_FEATURES; fi \
+ && JAVA_OPTS="-Xms256m -Xmx1024m" /opt/keycloak/bin/kc.sh build \
+ && chmod -R g+rwX /opt/keycloak
+
+# ---------------------------------------------------------------------------
+# Runtime: Alpine musl + jlink JRE + built Keycloak. apk removed.
 # ---------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
 
@@ -122,7 +153,6 @@ ARG JAVA_MAJOR
 ARG KC_DB=postgres
 ARG KC_HEALTH_ENABLED=true
 ARG KC_METRICS_ENABLED=true
-ARG KC_FEATURES
 ARG KC_CACHE=local
 
 ENV LANG=C.UTF-8 \
@@ -146,16 +176,11 @@ RUN apk add --no-cache \
  && adduser -u 1000 -G root -D -H -s /sbin/nologin keycloak
 
 COPY --from=jre /opt/java /opt/java
-COPY --from=dist --chown=1000:0 /opt/keycloak /opt/keycloak
+COPY --from=build --chown=1000:0 /opt/keycloak /opt/keycloak
 COPY --from=jre /licenses/temurin /licenses/temurin
 COPY LICENSE NOTICE THIRD-PARTY-NOTICES.md licenses/SOURCE-OFFER.txt /licenses/
 
-RUN chmod -R g+rwX /opt/keycloak \
- && test -f /opt/keycloak/LICENSE.txt \
- && if [ -z "${KC_FEATURES:-}" ]; then unset KC_FEATURES; fi \
- && JAVA_OPTS="-Xms256m -Xmx1024m" /opt/keycloak/bin/kc.sh build \
- && chown -R 1000:0 /opt/keycloak \
- && chmod -R g+rwX /opt/keycloak \
+RUN test -f /opt/keycloak/LICENSE.txt \
  && cp /lib/apk/db/installed /licenses/alpine-packages.txt \
  && rm -rf /var/cache/apk /etc/apk /lib/apk /sbin/apk /usr/share/apk /root/.ash_history
 

@@ -25,7 +25,7 @@ GitHub Actions builds on public runners (Keycloak tarball, Adoptium JDK, and the
 | Entry | `/opt/keycloak/bin/kc.sh` | Bitnami `entrypoint.sh` |
 | Default CMD | `start --optimized` | `start-dev` |
 
-Baked at build time: `KC_DB=postgres`, `KC_HEALTH_ENABLED=true`, `KC_METRICS_ENABLED=true`. Runtime default: `KC_CACHE=local`. TLS is not generated in the image. Mount PEM at `/opt/keycloak/certs/tls.crt` and `tls.key`.
+Baked at build time in a builder stage (`kc.sh build`), then copied once into runtime: `KC_DB=postgres`, `KC_HEALTH_ENABLED=true`, `KC_METRICS_ENABLED=true`. Runtime default: `KC_CACHE=local`. TLS is not generated in the image. Mount PEM at `/opt/keycloak/certs/tls.crt` and `tls.key`.
 
 `kc.sh` is POSIX `#!/bin/sh`. Busybox is enough. Compiler modules stay in the jlink set so `kc.sh build` still works. `jdk.jconsole`, `jdk.jshell`, `jdk.javadoc`, `jdk.jlink`, `jdk.jpackage`, `jdk.jdeps`, `jdk.jcmd`, `jdk.jstatd`, `jdk.editpad` are dropped.
 
