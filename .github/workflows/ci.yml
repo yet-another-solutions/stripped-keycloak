@@ -37,12 +37,12 @@ jobs:
         include:
           - id: keycloak
             file: keycloak/Containerfile
-            context: keycloak
+            context: .
             tag: stripped-keycloak:ci
             java_major: "21"
           - id: operator
             file: operator/Containerfile
-            context: operator
+            context: .
             tag: stripped-keycloak-operator:ci
             java_major: "25"
     steps:
@@ -72,12 +72,14 @@ jobs:
         run: |
           docker run --rm --entrypoint /opt/java/bin/java stripped-keycloak:ci -version
           docker run --rm stripped-keycloak:ci --version
+          docker run --rm --user 1000:0 --entrypoint /bin/sh stripped-keycloak:ci -c \
+            'test -f /opt/keycloak/LICENSE.txt && test -f /licenses/temurin/NOTICE && test -f /licenses/alpine-packages.txt && test -d /opt/java/legal && test -f /licenses/SOURCE-OFFER.txt'
       - name: Smoke operator
         if: matrix.id == 'operator'
         run: |
           docker run --rm --entrypoint /opt/java/bin/java stripped-keycloak-operator:ci -version
           docker run --rm --user 1000:0 --entrypoint /bin/sh stripped-keycloak-operator:ci -c \
-            'test -f /opt/keycloak/quarkus-run.jar && test -d /opt/keycloak/lib && test -d /opt/keycloak/quarkus'
+            'test -f /opt/keycloak/quarkus-run.jar && test -d /opt/keycloak/lib && test -d /opt/keycloak/quarkus && test -f /opt/keycloak/LICENSE.txt && test -f /licenses/temurin/NOTICE && test -f /licenses/alpine-packages.txt && test -d /opt/java/legal && test -f /licenses/SOURCE-OFFER.txt'
 
   manifests:
     runs-on: ubuntu-latest

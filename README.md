@@ -1,5 +1,10 @@
 # stripped-keycloak
 
+> [!CAUTION]
+> This project is maintained by AI and supervised by a human. Use it at your own risk. No guarantees.
+
+This project is not the official Keycloak image, not Red Hat build of Keycloak, and is not affiliated with, endorsed by, or maintained by the Keycloak project, CNCF, the Linux Foundation, Red Hat, IBM, or the Eclipse Foundation. Keycloak is a trademark of The Linux Foundation. Eclipse Temurin is a trademark of the Eclipse Foundation AISBL.
+
 Two images, one repository. Both are Alpine 3.24.1 plus a Temurin musl `jlink` JRE. Official Quay/UBI runtimes are not used. Java is not an apk or RPM package. `apk` is deleted from the final layer.
 
 | Image | Path | GHCR |
@@ -70,8 +75,8 @@ make build-operator
 ```
 
 ```sh
-podman build --format=oci --squash-all -t stripped-keycloak:26.7.2-alpine-jlink -f keycloak/Containerfile keycloak
-podman build --format=oci --squash-all -t stripped-keycloak-operator:26.7.2-alpine-jlink -f operator/Containerfile operator
+podman build --format=oci --squash-all -t stripped-keycloak:26.7.2-alpine-jlink -f keycloak/Containerfile .
+podman build --format=oci --squash-all -t stripped-keycloak-operator:26.7.2-alpine-jlink -f operator/Containerfile .
 ```
 
 Java 25 for the server:
@@ -194,6 +199,10 @@ docker run --rm -p 8443:8443 -p 9000:9000 \
 ```
 
 Ports: `8080` HTTP, `8443` HTTPS, `9000` management, `7800`/`57800` JGroups (unused while `KC_CACHE=local`). Persist `/opt/keycloak/data`. Providers go in `/opt/keycloak/providers` before a rebuild.
+
+## License and notices
+
+Repo files are Apache-2.0 (`LICENSE`). Images also contain GPL-2.0-only Alpine/BusyBox pieces and a Temurin JRE (GPLv2 with Classpath Exception). See `NOTICE`, `THIRD-PARTY-NOTICES.md`, and `/licenses/SOURCE-OFFER.txt` in the image for attribution and a three-year written offer of corresponding source.
 
 ## Bumping Keycloak
 

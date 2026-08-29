@@ -1,0 +1,11 @@
+.git
+.github
+.gitignore
+.hadolint.yaml
+Makefile
+dist
+scripts
+**/.dockerignore
+*.md
+!NOTICE
+!THIRD-PARTY-NOTICES.md

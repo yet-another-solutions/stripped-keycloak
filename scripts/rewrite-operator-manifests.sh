@@ -44,7 +44,9 @@ rewrite_images() {
       -e "s|${UPSTREAM_KEYCLOAK}|${KEYCLOAK_IMAGE}|g" \
       "$file" > "$tmp"
   {
-    echo "# Rewritten from keycloak/keycloak-k8s-resources ${KEYCLOAK_VERSION}; quay images -> ${REGISTRY}/${OWNER}/stripped-keycloak*."
+    echo "# Rewritten from keycloak/keycloak-k8s-resources ${KEYCLOAK_VERSION} (Apache-2.0)."
+    echo "# Image refs rewritten: quay.io/keycloak/* -> ${REGISTRY}/${OWNER}/stripped-keycloak*."
+    echo "# This file is a modified Apache-2.0 work. License: https://github.com/${OWNER}/stripped-keycloak/blob/master/LICENSE"
     cat "$tmp"
   } > "$file"
   rm -f "$tmp"
@@ -83,7 +85,8 @@ EOF
 
 install="${OUT}/../stripped-keycloak-operator-install-${IMAGE_TAG}.yml"
 {
-  echo "# CRDs + rewritten operator Deployment from keycloak/keycloak-k8s-resources ${KEYCLOAK_VERSION}"
+  echo "# CRDs + rewritten operator Deployment from keycloak/keycloak-k8s-resources ${KEYCLOAK_VERSION} (Apache-2.0)."
+  echo "# Modified work; license: https://github.com/${OWNER}/stripped-keycloak/blob/master/LICENSE"
   echo "---"
   first=1
   for crd in $CRDS; do

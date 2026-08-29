@@ -1,0 +1,30 @@
+Written offer of corresponding source (GPLv2 §3(b))
+
+For at least three years from each image publish date, yet-another-solutions
+will provide complete corresponding source for GPL components conveyed in
+stripped-keycloak and stripped-keycloak-operator images, at no more than the
+cost of physically performing source distribution.
+
+Request it via GitHub Issues on:
+  https://github.com/yet-another-solutions/stripped-keycloak
+
+Or obtain the same source from the upstream locations pinned by the image:
+
+  Alpine 3.24.1 aports:
+    https://gitlab.alpinelinux.org/alpine/aports
+
+  BusyBox (GPL-2.0-only), as packaged by Alpine:
+    https://busybox.net/
+    https://pkgs.alpinelinux.org/package/v3.24/main/x86_64/busybox
+
+  Eclipse Temurin JDK used as the jlink input (versions in the Containerfile):
+    https://github.com/adoptium/temurin-build
+    https://github.com/adoptium/jdk21u
+    https://github.com/adoptium/jdk25u
+    https://adoptium.net/
+
+  MySQL Connector/J as shipped in the official Keycloak 26.7.2 dist:
+    https://github.com/mysql/mysql-connector-j
+
+This offer does not apply to Apache-2.0 Keycloak or operator code, which is
+not GPL.

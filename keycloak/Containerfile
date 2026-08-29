@@ -73,6 +73,10 @@ RUN apk add --no-cache ca-certificates wget binutils \
       --no-header-files \
       --compress=zip-6 \
       --output /opt/java \
+ && mkdir -p /licenses/temurin \
+ && for f in NOTICE LICENSE ASSEMBLY_EXCEPTION ADDITIONAL_LICENSE_INFO; do \
+      if [ -f "/opt/jdk/${f}" ]; then cp "/opt/jdk/${f}" "/licenses/temurin/${f}"; fi; \
+    done \
  && rm -rf /opt/jdk \
  && apk del binutils wget
 
@@ -133,12 +137,16 @@ RUN apk add --no-cache \
 
 COPY --from=jre /opt/java /opt/java
 COPY --from=dist --chown=1000:0 /opt/keycloak /opt/keycloak
+COPY --from=jre /licenses/temurin /licenses/temurin
+COPY LICENSE NOTICE THIRD-PARTY-NOTICES.md licenses/SOURCE-OFFER.txt /licenses/
 
 RUN chmod -R g+rwX /opt/keycloak \
+ && test -f /opt/keycloak/LICENSE.txt \
  && if [ -z "${KC_FEATURES:-}" ]; then unset KC_FEATURES; fi \
  && JAVA_OPTS="-Xms256m -Xmx1024m" /opt/keycloak/bin/kc.sh build \
  && chown -R 1000:0 /opt/keycloak \
  && chmod -R g+rwX /opt/keycloak \
+ && cp /lib/apk/db/installed /licenses/alpine-packages.txt \
  && rm -rf /var/cache/apk /etc/apk /lib/apk /sbin/apk /usr/share/apk /root/.ash_history
 
 USER 1000
@@ -150,5 +158,5 @@ CMD ["start", "--optimized"]
 LABEL org.opencontainers.image.title="stripped-keycloak" \
       org.opencontainers.image.description="Keycloak ${KEYCLOAK_VERSION} on Alpine + Temurin ${JAVA_MAJOR} jlink JRE" \
       org.opencontainers.image.version="${KEYCLOAK_VERSION}" \
-      org.opencontainers.image.source="https://github.com/keycloak/keycloak" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.source="https://github.com/yet-another-solutions/stripped-keycloak" \
+      org.opencontainers.image.licenses="Apache-2.0 AND GPL-2.0-only AND GPL-2.0-with-classpath-exception AND MIT"

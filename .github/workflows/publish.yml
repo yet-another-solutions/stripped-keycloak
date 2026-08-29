@@ -69,12 +69,12 @@ jobs:
           - id: keycloak
             image: stripped-keycloak
             file: keycloak/Containerfile
-            context: keycloak
+            context: .
             java_major: "21"
           - id: operator
             image: stripped-keycloak-operator
             file: operator/Containerfile
-            context: operator
+            context: .
             java_major: "25"
     steps:
       - name: Checkout
@@ -145,7 +145,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event.inputs.dry_run != 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.source=https://github.com/yet-another-solutions/stripped-keycloak
+            org.opencontainers.image.licenses=Apache-2.0 AND GPL-2.0-only AND GPL-2.0-with-classpath-exception AND MIT
           provenance: true
           sbom: true
           build-args: |

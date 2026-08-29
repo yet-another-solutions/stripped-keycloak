@@ -1,8 +1,40 @@
 stripped-keycloak
 Copyright 2026 stripped-keycloak contributors
 
-This image ships the official Keycloak distribution (Apache-2.0),
-https://github.com/keycloak/keycloak
+This product is not the official Keycloak image, not Red Hat build of
+Keycloak, and is not affiliated with, endorsed by, or maintained by the
+Keycloak project, CNCF, the Linux Foundation, Red Hat, IBM, or the
+Eclipse Foundation.
 
-and a jlink runtime derived from Eclipse Temurin (GPLv2 with Classpath Exception),
-https://adoptium.net/
+This image ships:
+
+- The official Keycloak 26.7.2 distribution (Apache-2.0)
+  https://github.com/keycloak/keycloak
+  Dist edits versus the official tarball: Windows launchers (.bat, .ps1)
+  removed; `kc.sh build` run at image build with KC_DB=postgres,
+  KC_HEALTH_ENABLED=true, KC_METRICS_ENABLED=true; runtime JRE replaced
+  by a Temurin musl jlink image; apk package manager removed from the
+  final layer.
+
+- The Keycloak Operator quarkus-app from
+  quay.io/keycloak/keycloak-operator:26.7.2 (Apache-2.0). UBI and
+  Red Hat OpenJDK are not copied.
+  https://github.com/keycloak/keycloak
+
+- A jlink runtime derived from Eclipse Temurin (GPLv2 with Classpath
+  Exception). The Temurin top-level NOTICE is copied to
+  /licenses/temurin/; jlink keeps /opt/java/legal/.
+  https://adoptium.net/
+
+- Alpine Linux userland (BusyBox GPL-2.0-only, musl MIT, and other
+  packages recorded in /licenses/alpine-packages.txt).
+  https://alpinelinux.org/
+
+- Fonts (DejaVu / FreeType / fontconfig) in the server image.
+
+- JDBC drivers bundled unchanged in the official Keycloak dist:
+  MySQL Connector/J (GPLv2 + Universal FOSS Exception),
+  MariaDB Connector/J (LGPL-2.1-or-later),
+  H2 (MPL-2.0 or EPL-1.0).
+
+See THIRD-PARTY-NOTICES.md and /licenses/SOURCE-OFFER.txt.
