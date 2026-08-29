@@ -45,7 +45,7 @@ rewrite_images() {
       "$file" > "$tmp"
   {
     echo "# Rewritten from keycloak/keycloak-k8s-resources ${KEYCLOAK_VERSION} (Apache-2.0)."
-    echo "# Image refs rewritten: quay.io/keycloak/* -> ${REGISTRY}/${OWNER}/stripped-keycloak*."
+    echo "# Image refs rewritten to ${REGISTRY}/${OWNER}/stripped-keycloak*."
     echo "# This file is a modified Apache-2.0 work. License: https://github.com/${OWNER}/stripped-keycloak/blob/master/LICENSE"
     cat "$tmp"
   } > "$file"

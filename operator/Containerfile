@@ -69,14 +69,24 @@ RUN apk add --no-cache ca-certificates wget binutils \
       JLINK_MP=""; \
     fi \
  && [ -n "${MODULES}" ] || { echo "empty jlink module list" >&2; ls -la /opt/jdk >&2; exit 1; } \
- && /opt/jdk/bin/jlink \
-      ${JLINK_MP} \
-      --add-modules "${MODULES}" \
-      --strip-debug \
-      --no-man-pages \
-      --no-header-files \
-      --compress=zip-6 \
-      --output /opt/java \
+ && if [ -n "${JLINK_MP}" ]; then \
+      /opt/jdk/bin/jlink \
+        --module-path /opt/jdk/jmods \
+        --add-modules "${MODULES}" \
+        --strip-debug \
+        --no-man-pages \
+        --no-header-files \
+        --compress=zip-6 \
+        --output /opt/java; \
+    else \
+      /opt/jdk/bin/jlink \
+        --add-modules "${MODULES}" \
+        --strip-debug \
+        --no-man-pages \
+        --no-header-files \
+        --compress=zip-6 \
+        --output /opt/java; \
+    fi \
  && mkdir -p /licenses/temurin \
  && for f in NOTICE LICENSE ASSEMBLY_EXCEPTION ADDITIONAL_LICENSE_INFO; do \
       if [ -f "/opt/jdk/${f}" ]; then cp "/opt/jdk/${f}" "/licenses/temurin/${f}"; fi; \
