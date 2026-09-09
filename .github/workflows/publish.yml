@@ -78,7 +78,7 @@ jobs:
             java_major: "25"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Guard CVE-2026-18963
         run: |
@@ -169,7 +169,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Fetch and rewrite operator YAML
         env:
           OWNER: ${{ env.OWNER }}
